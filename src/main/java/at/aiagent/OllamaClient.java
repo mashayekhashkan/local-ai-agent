@@ -1,5 +1,6 @@
 package at.aiagent;
 
+import at.aiagent.model.ChatMessage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public class OllamaClient {
 
@@ -86,5 +88,63 @@ public class OllamaClient {
        }
 
        return answer;
+    }
+
+    public String chat(List<ChatMessage> conversationHistory)
+        throws IOException, InterruptedException {
+
+        ObjectNode requestBody = objectMapper.createObjectNode();
+
+        requestBody.put("model", MODEL);
+        requestBody.put("stream", false);
+        requestBody.put("think", false);
+
+        ObjectNode options = requestBody.putObject("options");
+        options.put("num_predict", 250);
+
+        ArrayNode messages = requestBody.putArray("messages");
+
+        for (ChatMessage chatMessage : conversationHistory) {
+            ObjectNode message = messages.addObject();
+            message.put("role", chatMessage.getRole());
+            message.put("content", chatMessage.getContent());
+        }
+
+        String json = objectMapper.writeValueAsString(requestBody);
+
+        System.out.println("DEBUG - Request JSON:");
+        System.out.println(json);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(API_URL))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        json, StandardCharsets.UTF_8
+                ))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(
+                request,
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+        );
+
+        if (response.statusCode() != 200) {
+            throw new  IOException("Ollama AOI erroe: " + response.body());
+        }
+        System.out.println("DEBUG - Ollama response:");
+        System.out.println(response.body());
+
+        JsonNode responseJson = objectMapper.readTree(response.body());
+
+        String answer = responseJson
+                .path("message")
+                .path("content")
+                .asText();
+
+        if (answer.isBlank()) {
+            throw new IOException("Keine Antwort vom KI-Model erhalten.");
+        }
+
+        return answer;
     }
 }

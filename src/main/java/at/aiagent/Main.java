@@ -1,5 +1,7 @@
 package at.aiagent;
 
+import at.aiagent.service.ChatService;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
@@ -7,7 +9,9 @@ public class Main {
     public static void main(String[] args) {
 
         Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8);
+
         OllamaClient ollamaClient = new OllamaClient();
+        ChatService chatService = new ChatService(ollamaClient);
 
         System.out.println("==================");
         System.out.println(" LOCAL AI AGENT");
@@ -34,7 +38,7 @@ public class Main {
             try {
                 System.out.println("\nAI Agent: Thinking...");
 
-                String answer = ollamaClient.ask(question);
+                String answer = chatService.sendMessage(question);
 
                 System.out.println("\nAI Agent: " + answer);
             } catch (Exception e) {
