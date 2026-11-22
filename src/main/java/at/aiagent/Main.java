@@ -1,5 +1,6 @@
 package at.aiagent;
 
+import at.aiagent.model.UserMemory;
 import at.aiagent.service.ChatService;
 
 import java.nio.charset.StandardCharsets;
