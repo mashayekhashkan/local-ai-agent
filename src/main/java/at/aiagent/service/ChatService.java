@@ -51,7 +51,28 @@ public class ChatService {
         Erfinde keine persönlichen Informationen.
                 
         Antworte in der Sprache des Benutzers.
-        Antworte verständlich, freundlich und präzis
+        Antworte verständlich, freundlich und präzise.
+        
+        Antwortverhalten:
+                
+        Beantworte die Frage direkt und verständlich.
+        Halte einfache Antworten kurz und beschränke dich
+        auf die Informationen, nach denen gefragt wurde.
+                
+        Erstelle Codebeispiele nur, wenn der Benutzer danach fragt.
+        Wenn er ein Beispiel verlangt, erkläre es verständlich
+        und verwende vollständigen, nachvollziehbaren Code.
+                
+        Bei komplexen Aufgaben darfst du ausführlicher antworten,
+        damit die Lösung vollständig und korrekt ist.
+                
+        Vermeide unnötige Wiederholungen und zusätzliche Themen.
+                
+        Ausgabe:
+                
+        Gib ausschließlich die fertige Antwort aus.
+        Zeige keine internen Überlegungen, Planungen
+        oder Selbstgespräche.
         """;
 
         if (userMemory.hasUserName()) {
@@ -89,27 +110,29 @@ userMemory.rememberUserNameFromMessage(userMessage);
             new ChatMessage("user", userMessage)
     );
 
+// Limit conversation history before calling the AI
+    conversationHistory.limitMessages(10);
+
 // Check whether Java can answer the question itself
     String answer = memoryQueryHandler.handle(userMessage);
 
 // Call Ollama if no direct answer is available
     if (answer == null) {
-        answer = ollamaClient.chat(conversationHistory.getMessages());
+        try {
+            answer = ollamaClient.chat(conversationHistory.getMessages());
+        } catch (IOException | InterruptedException e) {
+            conversationHistory.removeLastMessage();
+            throw e;
+        }
+
     }
-
-
-// Add user message to conversation history
-//conversationHistory.add(
-//        new ChatMessage("user", userMessage)
-//);
-
-// Send conversation history to Ollama
-//String answer = ollamaClient.chat(conversationHistory);
 
 // Save the answer
     conversationHistory.addMessage(
             new ChatMessage("assistant", answer)
     );
+// Limit conversation history
+    conversationHistory.limitMessages(10);
 
 return answer;
 }

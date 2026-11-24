@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 
 public class OllamaClient {
@@ -24,7 +25,9 @@ public class OllamaClient {
     private final ObjectMapper objectMapper;
 
     public OllamaClient() {
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
         this.objectMapper = new ObjectMapper();
     }
 
@@ -38,7 +41,7 @@ public class OllamaClient {
         requestBody.put("think", false);
 
         ObjectNode options = requestBody.putObject("options");
-        options.put("num_predict", 250);
+        options.put("num_predict", 600);
 
         // Add messages array
         ArrayNode messages = requestBody.putArray("messages");
@@ -50,13 +53,16 @@ public class OllamaClient {
 
         // Convert Java object to JSON
         String json = objectMapper.writeValueAsString(requestBody);
+
         System.out.println("DEBUG - Request JSON:");
         System.out.println(json);
+
 
         // Build HTTP request
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(API_URL))
                 .header("Content-Type", "application/json")
+                .timeout(Duration.ofMinutes(2))
                 .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();
 
@@ -78,13 +84,18 @@ public class OllamaClient {
         // Read AI response
         JsonNode responseJson = objectMapper.readTree(response.body());
 
-       String answer = responseJson
+        if (!responseJson.has("message")
+                || !responseJson.path("message").has("content")) {
+            throw new IOException("Ungültige Antwort vom Ollama-Server.");
+        }
+
+        String answer = responseJson
                .path("message")
                .path("content")
                .asText();
 
        if (answer.isBlank()) {
-           return "Keine Antwort von KI-Modell erhalten";
+           throw new IOException("Keine Antwort von KI-Modell erhalten");
        }
 
        return answer;
@@ -100,7 +111,7 @@ public class OllamaClient {
         requestBody.put("think", false);
 
         ObjectNode options = requestBody.putObject("options");
-        options.put("num_predict", 250);
+        options.put("num_predict", 600);
 
         ArrayNode messages = requestBody.putArray("messages");
 
@@ -112,12 +123,18 @@ public class OllamaClient {
 
         String json = objectMapper.writeValueAsString(requestBody);
 
+        // Number of messages in the current conversation history
+        System.out.println(
+                "DEBUG - Anzahl Nachrichten: " + conversationHistory.size()
+        );
+
         System.out.println("DEBUG - Request JSON:");
         System.out.println(json);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(API_URL))
                 .header("Content-Type", "application/json")
+                .timeout(Duration.ofMinutes(2))
                 .POST(HttpRequest.BodyPublishers.ofString(
                         json, StandardCharsets.UTF_8
                 ))
@@ -129,20 +146,33 @@ public class OllamaClient {
         );
 
         if (response.statusCode() != 200) {
-            throw new  IOException("Ollama AOI erroe: " + response.body());
+            throw new  IOException("Ollama API error: " + response.body());
         }
         System.out.println("DEBUG - Ollama response:");
         System.out.println(response.body());
 
         JsonNode responseJson = objectMapper.readTree(response.body());
 
+        if (!responseJson.has("message")
+        || !responseJson.path("message").has("content")) {
+            throw new IOException("Ungültige Antwort vom Ollama-Server.");
+        }
+
         String answer = responseJson
                 .path("message")
                 .path("content")
                 .asText();
 
+        String doneReason = responseJson
+                .path("done_reason")
+                .asText();
+
         if (answer.isBlank()) {
             throw new IOException("Keine Antwort vom KI-Model erhalten.");
+        }
+
+        if ("length".equals(doneReason)) {
+            answer += "\n\n[Hinweis: Diese Antwort wurde möglicherweise abgeschnitten, weil das Ausgabelimit erreicht wurde.]";
         }
 
         return answer;
